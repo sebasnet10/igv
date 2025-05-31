@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SISTEMA IGV PNP</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #0634027d;
+      margin: 0;
+    }
+    header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #ccc;
+    }
+    header img {
+      height: 150px;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin: 0;
+    }
+    .search-container {
+      position: relative;
+      margin-bottom: 20px;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    #suggestions {
+      background: white;
+      border: 1px solid #ccc;
+      max-height: 300px;
+      overflow-y: auto;
+      position: absolute;
+      width: 100%;
+      z-index: 1000;
+      display: none;
+    }
+    #suggestions div {
+      padding: 10px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+    #suggestions div:hover, #suggestions div.highlighted {
+      background: #007bff;
+      color: white;
+    }
+    .selection-info {
+      margin: 10px 0;
+      font-weight: bold;
+    }
+    .selected-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .card {
+      border: 1px solid #ccc;
+      background: white;
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      width: 120px;
+      height: 140px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card img {
+      width: 100%;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-bottom: 5px;
+    }
+    .card p {
+      margin: 0;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .delete-btn {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      font-size: 10px;
+      cursor: pointer;
+      z-index: 10;
+    }
+    .print-button {
+      margin-top: 30px;
+      padding: 10px 20px;
+      background-color: #5fe940cc;
+      color: rgb(0, 0, 0);
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .print-button:hover {
+      background-color: #bbf60d;
+    }
+    /* ESTILOS DE IMPRESIÓN CORREGIDOS */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #print-area, #print-area * {
+        visibility: visible;
+      }
+      #print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: auto;
+      }
+      .print-card {
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        page-break-after: always;
+      }
+      .print-card img {
+        max-height: 85vh;
+        max-width: 85%;
+        object-fit: contain;
+        margin-top: -40%;
+      }
+      @page {
+        size: A4;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="img/logo_pnp.png" alt="Logo PNP">
+    <h1>BASE DE DATOS IGV PARA COMISIONES DEL SERVICIO - UNIDIR PNP</h1>.
+    <img src="img/unidir.png" alt="Logo PNP">
+  </header>
+  
+  <div class="search-container">
+    <input type="text" id="buscador" placeholder="Buscar efectivo policial..." autocomplete="off">
+    <div id="suggestions"></div>
+  </div>
+
+  <div class="selection-info" id="selection-info">0 personas seleccionadas</div>
+
+  <div class="selected-container" id="selected"></div>
+
+  <button class="print-button" onclick="printQueue()">🖨️ Imprimir seleccionados</button>
+
+  <!-- Área de impresión oculta -->
+  <div id="print-area" style="display: none;"></div>
+
+  <script>
+    // Aquí debes agregar todos los nombres de tu lista con sus respectivas imágenes
+    const usuarios = [
+{ nombre: "CMDTE CORDOVA YUCRA REBER RICARDO", imagen: "fotos/Cordova_Yucra_Reber_Ricardo.jpg" },
+{ nombre: "TNTE BERNALA VARGAS Renato Cristian", imagen: "fotos/Bernala_Vargas_Renato_Cristian.jpg" },
+{ nombre: "SS CARRION CAMERCOA LUIS ENRIQUE", imagen: "fotos/Carrion_Camercoa_Luis_Enrique.jpg" },
+{ nombre: "SS CRUZ CORNEJO LUIS ALBERTO", imagen: "fotos/Cruz_Cornejo_Luis_Alberto.jpg" },
+{ nombre: "SS HERRERA MERCADO RICHARD ROBERT", imagen: "fotos/Herrera_Mercado_Richard_Robert.jpg" },
+{ nombre: "SS LOAIZA CHAVEZ YILMAR ANGEL", imagen: "fotos/Loaiza_Chavez_Yilmar_Angel.jpg" },
+{ nombre: "SS MESTAS CHIRE JAVIER VIDAL", imagen: "fotos/Mestas_Chire_Javier_Vidal.jpg" },
+{ nombre: "SS ROMERO ABRILL WALTER ENRIQUE", imagen: "fotos/Romero_Abrill_Walter_Enrique.jpg" },
+{ nombre: "SS YDME CARRASCO Rene Jose", imagen: "fotos/Ydme_Carrasco_Rene_Jose.jpg" },
+{ nombre: "SB APAZA ANTACABANA FLAVIO CLEMENTE", imagen: "fotos/Apaza_Antacabana_Flavio_Clemente.jpg" },
+{ nombre: "SB ASILLO MUÑOZ ROBERTO ISAAC", imagen: "fotos/Asillo_Munoz_Roberto_Isaac.jpg" },
+{ nombre: "SB CHAVEZ SANCHEZ JORGE", imagen: "fotos/Chavez_Sanchez_Jorge.jpg" },
+{ nombre: "SB LEIVA NEYRA CARLOS ENRIQUE", imagen: "fotos/Leiva_Neyra_Carlos_Enrique.jpg" },
+{ nombre: "SB LOPEZ CONDORI EDWIN EDGAR", imagen: "fotos/Lopez_Condori_Edwin_Edgar.jpg" },
+{ nombre: "SB OBLITAS CASTELO JOHNNY ROBERT", imagen: "fotos/Oblitas_Castelo_Johnny_Robert.jpg" },
+{ nombre: "SB PORTUGAL PEREIRA JOSE LUIS", imagen: "fotos/Portugal_Pereira_Jose_Luis.jpg" },
+{ nombre: "SB ROJAS QUISPE DAVID PERCY", imagen: "fotos/Rojas_Quispe_David_Percy.jpg" },
+{ nombre: "SB SUCA GONZALES FREDY PAOLO", imagen: "fotos/Suca_Gonzales_Fredy_Paolo.jpg" },
+{ nombre: "SB TICONA QUISPE JOHN ROBERT", imagen: "fotos/Ticona_Quispe_John_Robert.jpg" },
+{ nombre: "SB TTITO SUTTA RAMIRO", imagen: "fotos/Ttito_Sutta_Ramiro.jpg" },
+{ nombre: "ST1 ALARCON MONTES JUAN CARLOS", imagen: "fotos/Alarcon_Montes_Juan_Carlos.jpg" },
+{ nombre: "ST1 ANGULO ALVARADO JOSÉ LUIS", imagen: "fotos/Angulo_Alvarado_Jose_Luis.jpg" },
+{ nombre: "ST1 CERVANTES HERRERA CARLA CECILIA", imagen: "fotos/Cervantes_Herrera_Carla_Cecilia.jpg" },
+{ nombre: "ST1 DELGADO ROJAS JOSÉ ARTURO", imagen: "fotos/Delgado_Rojas_Jose_Arturo.jpg" },
+{ nombre: "ST1 LOPEZ CESPEDES ELDER WENCESLAO", imagen: "fotos/Lopez_Cespedes_Elder_Wenceslao.jpg" },
+{ nombre: "ST1 GIRON PALOMINO MARCO PORFIRIO", imagen: "fotos/Giron_Palomino_Marco_Porfirio.jpg" },
+{ nombre: "ST1 GOMEZ OJEDA JOSE LUIS", imagen: "fotos/Gomez_Ojeda_Jose_Luis.jpg" },
+{ nombre: "ST1 PEÑA OLIVARES DARWIN ULDARICO", imagen: "fotos/Pena_Olivares_Darwin_Uldarico.jpg" },
+{ nombre: "ST1 PUMA MAMANI FREDY", imagen: "fotos/Puma_Mamani_Fredy.jpg" },
+{ nombre: "ST1 RAMOS JARA ERNESTO ALONSO", imagen: "fotos/Ramos_Jara_Ernesto_Alonso.jpg" },
+{ nombre: "ST1 SUAQUITA PACHECO Aida Irene", imagen: "fotos/Suaquita_Pacheco_Aida_Irene.jpg" },
+{ nombre: "ST2 CACERES SALAS GELBERT MOISES", imagen: "fotos/Caceres_Salas_Gelbert_Moises.jpg" },
+{ nombre: "ST2 CANCEÑO DIAZ ABRAHAM", imagen: "fotos/Canceno_Diaz_Abraham.jpg" },
+{ nombre: "ST2 CARDENAS NEIRA LEONEL PERCY", imagen: "fotos/Cardenas_Neira_Leonel_Percy.jpg" },
+{ nombre: "ST2 CHICATA QUISPE RAUL FRANCISCO", imagen: "fotos/Chicata_Quispe_Raul_Francisco.jpg" },
+{ nombre: "ST2 CORNEJO SALAS JUAN CARLOS", imagen: "fotos/Cornejo_Salas_Juan_Carlos.jpg" },
+{ nombre: "ST2 CORRALES RIVERA LUIS ALBERTO", imagen: "fotos/Corrales_Rivera_Luis_Alberto.jpg" },
+{ nombre: "ST2 DEL CARPIO PAREDES VDA DE FARIAS SOLANGHE ELENA", imagen: "fotos/Del_Carpio_Paredes_Vda_de_Farias_Solanghe_Elena.jpg" },
+{ nombre: "ST2 LOPEZ MEDINA ENEIDA SOLEDAD", imagen: "fotos/Lopez_Medina_Eneida_Soledad.jpg" },
+{ nombre: "ST2 MAQUERA SANCHEZ GUVER DENILSON", imagen: "fotos/Maquera_Sanchez_Guver_Denilson.jpg" },
+{ nombre: "ST2 MAZA GUTIERREZ TONY", imagen: "fotos/Maza_Gutierrez_Tony.jpg" },
+{ nombre: "ST2 NINA DELGADO MARIA VERONICA", imagen: "fotos/Nina_Delgado_Maria_Veronica.jpg" },
+{ nombre: "ST2 OCHOA SUNI ALEJANDRO ELMY", imagen: "fotos/Ochoa_Suni_Alejandro_Elmy.jpg" },
+{ nombre: "ST2 OTERO BARRIGA EDWARD GIANCARLO", imagen: "fotos/Otero_Barriga_Edward_Giancarlo.jpg" },
+{ nombre: "ST2 PAREDES REYES REYNALDO", imagen: "fotos/Paredes_Reyes_Reynaldo.jpg" },
+{ nombre: "ST2 ROMERO ATENCIO ANTHONY PEDRO", imagen: "fotos/Romero_Atencio_Anthony_Pedro.jpg" },
+{ nombre: "ST2 ROSAS LEANDRO RICARDO AMÉRICO", imagen: "fotos/Rosas_Leandro_Ricardo_Americo.jpg" },
+{ nombre: "ST2 TOMAYCONZA CUBA NILTON CESAR", imagen: "fotos/Tomayconza_Cuba_Nilton_Cesar.jpg" },
+{ nombre: "ST3 BAUTISTA APAZA JESUS", imagen: "fotos/Bautista_Apaza_Jesus.jpg" },
+{ nombre: "ST3 CHALCO CHOQUE EDSON YULIO", imagen: "fotos/Chalco_Choque_Edson_Yulio.jpg" },
+{ nombre: "ST3 FAJARDO RODRIGUEZ OSCAR ALFONSO", imagen: "fotos/Fajardo_Rodriguez_Oscar_Alfonso.jpg" },
+{ nombre: "ST3 FLORES BUIZA MARCO ANTONIO", imagen: "fotos/Flores_Buiza_Marco_Antonio.jpg" },
+{ nombre: "ST3 GARCIA MACUADO WINDHAM LORENZO", imagen: "fotos/Garcia_Macuado_Windham_Lorenzo.jpg" },
+{ nombre: "ST3 LOPEZ CHUQUICONDO JUAN CARLOS", imagen: "fotos/Lopez_Chuquicondo_Juan_Carlos.jpg" },
+{ nombre: "ST3 MORALES VALDEZ NURY ANTONIETA", imagen: "fotos/Morales_Valdez_Nury_Antonieta.jpg" },
+{ nombre: "ST3 QUISPE CABRERA SANTIAGO MARTIN EDUARDO", imagen: "fotos/Quispe_Cabrera_Santiago_Martin_Eduardo.jpg" },
+{ nombre: "ST3 QUISPE FUENTES MANUEL", imagen: "fotos/Quispe_Fuentes_Manuel.jpg" },
+{ nombre: "ST3 RODRIGUEZ QUISPE WILMAR MAURO", imagen: "fotos/Rodriguez_Quispe_Wilmar_Mauro.jpg" },
+{ nombre: "ST3 RONDON VALDIVIA DARWIN JESUS", imagen: "fotos/Rondon_Valdivia_Darwin_Jesus.jpg" },
+{ nombre: "ST3 SAAVEDRA HINOJOSA KAROL DENNIS", imagen: "fotos/Saavedra_Hinojosa_Karol_Dennis.jpg" },
+{ nombre: "S1 ALCCA MONTEROLA VICTOR", imagen: "fotos/Alcca_Monterola_Victor.jpg" },
+{ nombre: "S1 ALTAMIRANO CASTRO ALEXANDER GONZALO", imagen: "fotos/Altamirano_Castro_Alexander_Gonzalo.jpg" },
+{ nombre: "S1 ALVIS MEDINA DANIEL RENE", imagen: "fotos/Alvis_Medina_Daniel_Rene.jpg" },
+{ nombre: "S1 ARENAS HERRERA JAIME JOEL", imagen: "fotos/Arenas_Herrera_Jaime_Joel.jpg" },
+{ nombre: "S1 AROTAYPE CHOQUEHUANCA JOSE LUIS", imagen: "fotos/Arotaype_Choquehuanca_Jose_Luis.jpg" },
+{ nombre: "S1 ARROYO ESCAPA JUAN LUIS", imagen: "fotos/Arroyo_Escapa_Juan_Luis.jpg" },
+{ nombre: "S1 AYMA CCOLQQUE RENZO EDWIN", imagen: "fotos/Ayma_Ccolqque_Renzo_Edwin.jpg" },
+{ nombre: "S1 BACA NUÑEZ OMAR RICARDO", imagen: "fotos/Baca_Nunez_Omar_Ricardo.jpg" },
+{ nombre: "S1 CABANA DEMANUEL CARLOS JONATAN", imagen: "fotos/Cabana_Demanuel_Carlos_Jonatan.jpg" },
+{ nombre: "S1 CABANA MICHUY JESUS MANUEL", imagen: "fotos/Cabana_Michuy_Jesus_Manuel.jpg" },
+{ nombre: "S1 CALDERON CASTRO JUAN ROBERTO", imagen: "fotos/Calderon_Castro_Juan_Roberto.jpg" },
+{ nombre: "S1 CALLAPANI ARIAS JOSE LUIS", imagen: "fotos/Callapani_Arias_Jose_Luis.jpg" },
+{ nombre: "S1 CAMA SOTO EDER DENMBER", imagen: "fotos/Cama_Soto_Eder_Denmber.jpg" },
+{ nombre: "S1 CARLO HUAMAN SAUL ANGEL", imagen: "fotos/Carlo_Huaman_Saul_Angel.jpg" },
+{ nombre: "S1 CAVANA DEMANUEL KENGGI VICTOR", imagen: "fotos/Cavana_Demanuel_Kenggi_Victor.jpg" },
+{ nombre: "S1 CAYLLAHUA MAMANI NELSON", imagen: "fotos/Cayllahua_Mamani_Nelson.jpg" },
+{ nombre: "S1 CHARAGUA ORTIZ ELARD RUBEN", imagen: "fotos/Charagua_Ortiz_Elard_Ruben.jpg" },
+{ nombre: "S1 CHIRE FLORES LUIS JHONATAN", imagen: "fotos/Chire_Flores_Luis_Jhonatan.jpg" },
+{ nombre: "S1 CHOQUE RAMOS WILSON YORQUI", imagen: "fotos/Choque_Ramos_Wilson_Yorqui.jpg" },
+{ nombre: "S1 CHOQUEÑO NUÑEZ JUAN PABLO MICHAEL", imagen: "fotos/Choqueno_Nunez_Juan_Pablo_Michael.jpg" },
+{ nombre: "S1 CHUA CORIMANYA RONALD ENZO", imagen: "fotos/Chua_Corimanya_Ronald_Enzo.jpg" },
+{ nombre: "S1 CHUQUITAYPE CHOQUENAYRA JUAN BENITO", imagen: "fotos/Chuquitaype_Choquenayra_Juan_Benito.jpg" },
+{ nombre: "S1 COILA MAMANI ROBERTO CARLOS", imagen: "fotos/Coila_Mamani_Roberto_Carlos.jpg" },
+{ nombre: "S1 CONDORI CONDORI RODOLFO PEDRO", imagen: "fotos/Condori_Condori_Rodolfo_Pedro.jpg" },
+{ nombre: "S1 CONDORI QUISPE VICTOR HUGO", imagen: "fotos/Condori_Quispe_Victor_Hugo.jpg" },
+{ nombre: "S1 CONDORI MACHACA MIGUEL ANGEL", imagen: "fotos/Condori_Machaca_Miguel_Angel.jpg" },
+{ nombre: "S1 CORRALES PILCO ABNER DAVID", imagen: "fotos/Corrales_Pilco_Abner_David.jpg" },
+{ nombre: "S1 CUEVAS SUMI JOSE DAVID", imagen: "fotos/Cuevas_Sumi_Jose_David.jpg" },
+{ nombre: "S1 CUSI YUCRA GUIDO ERNESTO ELOY", imagen: "fotos/Cusi_Yucra_Guido_Ernesto_Eloy.jpg" },
+{ nombre: "S1 DIAZ CHURA EDUARDO", imagen: "fotos/Diaz_Chura_Eduardo.jpg" },
+{ nombre: "S1 DIAZ GONGORA GEYLER SLEDGER", imagen: "fotos/Diaz_Gongora_Geyler_Sledger.jpg" },
+{ nombre: "S1 DUEÑAS MARIN EUSEBIO ENRIQUE", imagen: "fotos/Duenas_Marin_Eusebio_Enrique.jpg" },
+{ nombre: "S1 ESCOBAR ESCOBAR HAROLD RONALD", imagen: "fotos/Escobar_Escobar_Harold_Ronald.jpg" },
+{ nombre: "S1 ESTOFANERO CONDORI CESAR RICARDO", imagen: "fotos/Estofanero_Condori_Cesar_Ricardo.jpg" },
+{ nombre: "S1 FLORES CALIZAYA PEDRO PABLO", imagen: "fotos/Flores_Calizaya_Pedro_Pablo.jpg" },
+{ nombre: "S1 FLORES HUANCA FREDDY", imagen: "fotos/Flores_Huanca_Freddy.jpg" },
+{ nombre: "S1 GARCIA ALVAREZ LUIS MIGUEL", imagen: "fotos/Garcia_Alvarez_Luis_Miguel.jpg" },
+{ nombre: "S1 GONZALES RAMOS JOHN RAFAEL", imagen: "fotos/Gonzales_Ramos_John_Rafael.jpg" },
+{ nombre: "S1 HERNANI HUARCA EDYMAR JHON", imagen: "fotos/Hernani_Huarca_Edymar_Jhon.jpg" },
+{ nombre: "S1 HUILLCACURI CONDORI ALEX GABRIEL", imagen: "fotos/Huillcacuri_Condori_Alex_Gabriel.jpg" },
+{ nombre: "S1 HUMPIRE PACOMBIA JUAN CARLOS", imagen: "fotos/Humpire_Pacombia_Juan_Carlos.jpg" },
+{ nombre: "S1 IQUISE CHIPANA HENRY YOEL", imagen: "fotos/Iquise_Chipana_Henry_Yoel.jpg" },
+{ nombre: "S1 JIMENEZ MAQUE EDGAR WILSON", imagen: "fotos/Jimenez_Maque_Edgar_Wilson.jpg" },
+{ nombre: "S1 JUSTO PURACA BETTO SANDY", imagen: "fotos/Justo_Puraca_Betto_Sandy.jpg" },
+{ nombre: "S1 LEIVA RODRIGUEZ AUGUSTO YERIKO", imagen: "fotos/Leiva_Rodriguez_Augusto_Yeriko.jpg" },
+{ nombre: "S1 LLALLACACHI CAPIRA WILSON YENER", imagen: "fotos/Llallacachi_Capira_Wilson_Yener.jpg" },
+{ nombre: "S1 MAMANI CENTENO JOSUE ELISEO", imagen: "fotos/Mamani_Centeno_Josue_Eliseo.jpg" },
+{ nombre: "S1 MAMANI FORAQUITA WILLY JUNIOR", imagen: "fotos/Mamani_Foraquita_Willy_Junior.jpg" },
+{ nombre: "S1 MAMANI QUISPE LUIS FIDEL", imagen: "fotos/Mamani_Quispe_Luis_Fidel.jpg" },
+{ nombre: "S1 MAMANI VALENCIA ANTONY", imagen: "fotos/Mamani_Valencia_Antony.jpg" },
+{ nombre: "S1 MEZA TOLEDO KATHERINE GIOVANA", imagen: "fotos/Meza_Toledo_Katherine_Giovana.jpg" },
+{ nombre: "S1 MOLLEAPAZA DEMANUEL JUAN ALEXANDER", imagen: "fotos/Molleapaza_Demanuel_Juan_Alexander.jpg" },
+{ nombre: "S1 MONTALICO CANAHUA JAIME", imagen: "fotos/Montalico_Canahua_Jaime.jpg" },
+{ nombre: "S1 MOROCO WONG JUAN MANUEL", imagen: "fotos/Moroco_Wong_Juan_Manuel.jpg" },
+{ nombre: "S1 PACHECO ALVARADO MAYROLD YAMPIER", imagen: "fotos/Pacheco_Alvarado_Mayrold_Yampier.jpg" },
+{ nombre: "S1 PAREDES CACERES MAXWELL LEONIDAS", imagen: "fotos/Paredes_Caceres_Maxwell_Leonidas.jpg" },
+{ nombre: "S1 PATIÑO LUQUE JUAN CARLOS", imagen: "fotos/Patino_Luque_Juan_Carlos.jpg" },
+{ nombre: "S1 PAUCCAR CONDE PERCY", imagen: "fotos/Pauccar_Conde_Percy.jpg" },
+{ nombre: "S1 PINEDA RAMOS ABELARDO", imagen: "fotos/Pineda_Ramos_Abelardo.jpg" },
+{ nombre: "S1 PUMA FLORES CHRISTIAN ABEL", imagen: "fotos/Puma_Flores_Christian_Abel.jpg" },
+{ nombre: "S1 PUMA HUANCA EDWIN ROBERLY", imagen: "fotos/Puma_Huanca_Edwin_Roberly.jpg" },
+{ nombre: "S1 QUIROZ VILCA FIORELLA VANESSA", imagen: "fotos/Quiroz_Vilca_Fiorella_Vanessa.jpg" },
+{ nombre: "S1 QUISPE MAMANI ROGER ALFONSO", imagen: "fotos/Quispe_Mamani_Roger_Alfonso.jpg" },
+{ nombre: "S1 RAMIREZ ANDRADE JESUS GONZALO", imagen: "fotos/Ramirez_Andrade_Jesus_Gonzalo.jpg" },
+{ nombre: "S1 RAMOS BAUTISTA BILL ALEX", imagen: "fotos/Ramos_Bautista_Bill_Alex.jpg" },
+{ nombre: "S1 RETAMOZO BERNEDO IRVING CARLOS", imagen: "fotos/Retamozo_Bernedo_Irving_Carlos.jpg" },
+{ nombre: "S1 RIOS SONCCO HERY", imagen: "fotos/Rios_Soncco_Hery.jpg" },
+{ nombre: "S1 RIVERA OLGADO JORDAN JOSEPH", imagen: "fotos/Rivera_Olgado_Jordan_Joseph.jpg" },
+{ nombre: "S1 ROSALES LOPEZ JUAN VICTOR", imagen: "fotos/Rosales_Lopez_Juan_Victor.jpg" },
+{ nombre: "S1 SALAS VALERO JOSE MANUEL", imagen: "fotos/Salas_Valero_Jose_Manuel.jpg" },
+{ nombre: "S1 SALHUA MIRANDA IVAN ERARDO", imagen: "fotos/Salhua_Miranda_Ivan_Erardo.jpg" },
+{ nombre: "S1 SOLIS QUISPE DANIEL ANDRES", imagen: "fotos/Solis_Quispe_Daniel_Andres.jpg" },
+{ nombre: "S1 SORIA QUISPE DANIEL GUILLERMO", imagen: "fotos/Soria_Quispe_Daniel_Guillermo.jpg" },
+{ nombre: "S1 SUCARI HUAYTA CLAY FRANK", imagen: "fotos/Sucari_Huayta_Clay_Frank.jpg" },
+{ nombre: "S1 TACO GUTIERREZ JUAN ARMANDO", imagen: "fotos/Taco_Gutierrez_Juan_Armando.jpg" },
+{ nombre: "S1 TORIBIO PEÑARES JUAN CARLOS", imagen: "fotos/Toribio_Penares_Juan_Carlos.jpg" },
+{ nombre: "S1 VENTURA OJEDA JUAN DANIEL", imagen: "fotos/Ventura_Ojeda_Juan_Daniel.jpg" },
+{ nombre: "S1 VILCA ATAJO CHRISTIAN JOEL", imagen: "fotos/Vilca_Atajo_Christian_Joel.jpg" },
+{ nombre: "S1 YAPO ALANGUIA EDBERG", imagen: "fotos/Yapo_Alanguia_Edberg.jpg" },
+{ nombre: "S1 ZAMATA LARICO HUMBERTO", imagen: "fotos/Zamata_Larico_Humberto.jpg" },
+{ nombre: "S1 ZAVALA TORRES MIZAEL MOISES", imagen: "fotos/Zavala_Torres_Mizael_Moises.jpg" },
+{ nombre: "S1 ZUÑIGA CAMACHO LUIS JAVIER", imagen: "fotos/Zuniga_Camacho_Luis_Javier.jpg" },
+{ nombre: "S1 ZUÑIGA CHULLUNQUIA JONATHAN", imagen: "fotos/Zuniga_Chullunquia_Jonathan.jpg" },
+{ nombre: "S2 AMBROCIO COILA ERIK DAVID", imagen: "fotos/Ambrocio_Coila_Erik_David.jpg" },
+{ nombre: "S2 AQUINO COPAJA DAVID DARIO", imagen: "fotos/Aquino_Copaja_David_Dario.jpg" },
+{ nombre: "S2 ARAUJO PACCO FIDEL EDY", imagen: "fotos/Araujo_Pacco_Fidel_Edy.jpg" },
+{ nombre: "S2 AVALOS FLORES RUSBEL ANGEL", imagen: "fotos/Avalos_Flores_Rusbel_Angel.jpg" },
+{ nombre: "S2 AYQUIPA LEON Jose Luis", imagen: "fotos/Ayquipa_Leon_Jose_Luis.jpg" },
+{ nombre: "S2 BELLIDO AUBERT JOSE ALEJANDRO", imagen: "fotos/Bellido_Aubert_Jose_Alejandro.jpg" },
+{ nombre: "S2 BELLIDO CAMARGO BRUNO JOEL", imagen: "fotos/Bellido_Camargo_Bruno_Joel.jpg" },
+{ nombre: "S2 CACERES ALCCA CAMILO HERMINIO", imagen: "fotos/Caceres_Alcca_Camilo_Herminio.jpg" },
+{ nombre: "S2 CCAMA ARISPE JORGE DIMAS", imagen: "fotos/Ccama_Arispe_Jorge_Dimas.jpg" },
+{ nombre: "S2 CASANI VENEGAS DERLY RUBEN", imagen: "fotos/Casani_Venegas_Derly_Ruben.jpg" },
+{ nombre: "S2 CASILLAS CHIPANA JULIO ABRAHAM", imagen: "fotos/Casillas_Chipana_Julio_Abraham.jpg" },
+{ nombre: "S2 CASTAÑEDA VILLA GIANELLA XIOMI", imagen: "fotos/Castaneda_Villa_Gianella_Xiomi.jpg" },
+{ nombre: "S2 CHAUCAYANQUI PAUCAR PEDRO CARLOS", imagen: "fotos/Chaucayanqui_Paucar_Pedro_Carlos.jpg" },
+{ nombre: "S2 CHECCA NINATAYPE ROLY CHRISTIAN", imagen: "fotos/Checca_Ninataype_Roly_Christian.jpg" },
+{ nombre: "S2 CCOPA COSSIO NELSON RODRIGO", imagen: "fotos/Ccopa_Cossio_Nelson_Rodrigo.jpg" },
+{ nombre: "S2 CHIRE VILCARANI JASSON ALBERTO", imagen: "fotos/Chire_Vilcarani_Jasson_Alberto.jpg" },
+{ nombre: "S2 CHISI CHAUPI FRANK LUIS", imagen: "fotos/Chisi_Chaupi_Frank_Luis.jpg" },
+{ nombre: "S2 CHOQUE QUISPE FRANKLIN DAVID", imagen: "fotos/Choque_Quispe_Franklin_David.jpg" },
+{ nombre: "S2 CORNEJO MANRIQUE VICTOR ALFONSO", imagen: "fotos/Cornejo_Manrique_Victor_Alfonso.jpg" },
+{ nombre: "S2 CUNO CHAÑI EDER FRANCO", imagen: "fotos/Cuno_Chani_Eder_Franco.jpg" },
+{ nombre: "S2 DE LA CUBA GOMEZ JHERSON ALEXANDER", imagen: "fotos/De_la_Cuba_Gomez_Jherson_Alexander.jpg" },
+{ nombre: "S2 DE LA TORRE GUTIERREZ JUNIOR ALFONSO", imagen: "fotos/De_la_Torre_Gutierrez_Junior_Alfonso.jpg" },
+{ nombre: "S2 ESTOFANERO PAMPA JHANDERZON FREDY", imagen: "fotos/Estofanero_Pampa_Jhanderson_Fredy.jpg" },
+{ nombre: "S2 FLORES HUAYLLA Augusto", imagen: "fotos/Flores_Huaylla_Augusto.jpg" },
+{ nombre: "S2 FLORES MEJÍA JOEL DONATO", imagen: "fotos/Flores_Mejia_Joel_Donato.jpg" },
+{ nombre: "S2 FLORES RAMOS EDGAR LUIS", imagen: "fotos/Flores_Ramos_Edgar_Luis.jpg" },
+{ nombre: "S2 FLORES VILLANUEVA WILLY DANIEL", imagen: "fotos/Flores_Villanueva_Willy_Daniel.jpg" },
+{ nombre: "S2 GAMARRA LLERENA GIANCARLO ISIDRO", imagen: "fotos/Gamarra_Llerena_Giancarlo_Isidro.jpg" },
+{ nombre: "S2 GOMEZ YAURI GHERSON ADOLFO", imagen: "fotos/Gomez_Yauri_Gherson_Adolfo.jpg" },
+{ nombre: "S2 GUERRA ARENAS JULIO MARIO", imagen: "fotos/Guerra_Arenas_Julio_Mario.jpg" },
+{ nombre: "S2 HUILLCA ABARCA ROLI ROGER", imagen: "fotos/Huillca_Abarca_Roli_Roger.jpg" },
+{ nombre: "S2 JARA ROMANI ELI DAN", imagen: "fotos/Jara_Romani_Eli_Dan.jpg" },
+{ nombre: "S2 LLACHO MARTINEZ EDY CESAR", imagen: "fotos/Llacho_Martinez_Edy_Cesar.jpg" },
+{ nombre: "S2 LLERENA REVILLA ELMER JUAN DE DIOS", imagen: "fotos/Llerena_Revilla_Elmer_Juan_de_Dios.jpg" },
+{ nombre: "S2 LUQUE MERINO JOHONNY JONATHAN", imagen: "fotos/Luque_Merino_Johonny_Jonathan.jpg" },
+{ nombre: "S2 LUQUE VILCA JHON VICTOR", imagen: "fotos/Luque_Vilca_Jhon_Victor.jpg" },
+{ nombre: "S2 MAMANI COILA JOSE ALBERTO", imagen: "fotos/Mamani_Coila_Jose_Alberto.jpg" },
+{ nombre: "S2 MOGROVEJO QUISPE AUGUSTO REMIGIO", imagen: "fotos/Mogrovejo_Quispe_Augusto_Remigio.jpg" },
+{ nombre: "S2 MOLLAPAZA QUISPE MARTIN", imagen: "fotos/Mollapaza_Quispe_Martin.jpg" },
+{ nombre: "S2 MUÑOZ GUTIERREZ CLARA ELENA", imagen: "fotos/Munoz_Gutierrez_Clara_Elena.jpg" },
+{ nombre: "S2 OSSIO VELIZ JUAN VICENTE", imagen: "fotos/Ossio_Veliz_Juan_Vicente.jpg" },
+{ nombre: "S2 PADILLA AYLLON ROMY KARIN", imagen: "fotos/Padilla_Ayllon_Romy_Karin.jpg" },
+{ nombre: "S2 PALOMINO HUAMAN MAURICIO GONZALO", imagen: "fotos/Palomino_Huaman_Mauricio_Gonzalo.jpg" },
+{ nombre: "S2 PAREDES CHACON LEONARDO DANTE", imagen: "fotos/Paredes_Chacon_Leonardo_Dante.jpg" },
+{ nombre: "S2 PARISUAÑA RAMOS FELIX SEBASTIAN", imagen: "fotos/Parisuana_Ramos_Felix_Sebastian.jpg" },
+{ nombre: "S2 PASACHE AVALOS DANIEL ANTONIO", imagen: "fotos/Pasache_Avalos_Daniel_Antonio.jpg" },
+{ nombre: "S2 PAYE CHOCRE RUEL MOISES", imagen: "fotos/Paye_Chocre_Ruel_Moises.jpg" },
+{ nombre: "S2 QUISPE ANCO YILMAR EDERSON", imagen: "fotos/Quispe_Anco_Yilmar_Ederson.jpg" },
+{ nombre: "S2 QUISPE MAMANI CLEBER RAMIRO", imagen: "fotos/Quispe_Mamani_Cleber_Ramiro.jpg" },
+{ nombre: "S2 RAMIREZ RODRIGUEZ GONZALO", imagen: "fotos/Ramirez_Rodriguez_Gonzalo.jpg" },
+{ nombre: "S2 RAMOS CCANCCAPA WILLIAM OVER", imagen: "fotos/Ramos_Ccanccapa_William_Over.jpg" },
+{ nombre: "S2 RAMOS PAUCAR JESUS ALBERTO", imagen: "fotos/Ramos_Paucar_Jesus_Alberto.jpg" },
+{ nombre: "S2 REVILLA GONZALES YOSIFF", imagen: "fotos/Revilla_Gonzales_Yosiff.jpg" },
+{ nombre: "S2 ROCA TORRES LUIS FELIPE", imagen: "fotos/Roca_Torres_Luis_Felipe.jpg" },
+{ nombre: "S2 RONDON CHAMBILLA DULIO", imagen: "fotos/Rondon_Chambilla_Dulio.jpg" },
+{ nombre: "S2 SALAS MONTESINOS WENCESLAO RODOLFO", imagen: "fotos/Salas_Montesinos_Wenceslao_Rodolfo.jpg" },
+{ nombre: "S2 SANCHEZ VELASQUE ABEL", imagen: "fotos/Sanchez_Velasque_Abel.jpg" },
+{ nombre: "S2 TEJADA TACO LUIS JAMES", imagen: "fotos/Tejada_Taco_Luis_James.jpg" },
+{ nombre: "S2 TORRES CONDORI JOSUE EDSON", imagen: "fotos/Torres_Condori_Josue_Edson.jpg" },
+{ nombre: "S2 TORRES CRUZ JESUS ANTONIO", imagen: "fotos/Torres_Cruz_Jesus_Antonio.jpg" },
+{ nombre: "S2 TORRES ZAPANA OSCAR ANTONIO", imagen: "fotos/Torres_Zapana_Oscar_Antonio.jpg" },
+{ nombre: "S2 VARGAS APAZA BRYAN PIERRE", imagen: "fotos/Vargas_Apaza_Bryan_Pierre.jpg" },
+{ nombre: "S2 VELASQUEZ MAMANI WILSON", imagen: "fotos/Velasquez_Mamani_Wilson.jpg" },
+{ nombre: "S2 VILCA MEDINA CRISTIAN", imagen: "fotos/Vilca_Medina_Cristian.jpg" },
+{ nombre: "S2 VILCA VILCA ELVIS SANTOS", imagen: "fotos/Vilca_Vilca_Elvis_Santos.jpg" },
+{ nombre: "S2 ZEVALLOS ALE RUDY FRANK", imagen: "fotos/Zevallos_Ale_Rudy_Frank.jpg" },
+{ nombre: "S2 ZEVALLOS PEREZ JEAN CARLOS", imagen: "fotos/Zevallos_Perez_Jean_Carlos.jpg" },
+{ nombre: "S3 AMACHI COAQUIRA EDY", imagen: "fotos/Amachi_Coaquira_Edy.jpg" },
+{ nombre: "S3 APAZA CHOQUE JOHN JONATHAN", imagen: "fotos/Apaza_Choque_John_Jonathan.jpg" },
+{ nombre: "S3 ARIAS MAYHUA WALDIR CRISTIAN", imagen: "fotos/Arias_Mayhua_Waldir_Cristian.jpg" },
+{ nombre: "S3 BAUTISTA PARICAHUA JAIME APOLINARIO", imagen: "fotos/Bautista_Paricahua_Jaime_Apolinario.jpg" },
+{ nombre: "S3 CALDERON QUISPE ROBERTO CHRISTOPHER", imagen: "fotos/Calderon_Quispe_Roberto_Christopher.jpg" },
+{ nombre: "S3 CAMPOS MOGROVEJO JUAN YEFFER", imagen: "fotos/Campos_Mogrovejo_Juan_Yeffer.jpg" },
+{ nombre: "S3 CUSTODIO CHAÑI ALBERTO MARTIN", imagen: "fotos/Custodio_Chani_Alberto_Martin.jpg" },
+{ nombre: "S3 DEL CARPIO DIAZ EDUARD RAFAEL", imagen: "fotos/Del_Carpio_Diaz_Eduard_Rafael.jpg" },
+{ nombre: "S3 ESQUIVIAS LAGUNA ERIK ANDRE", imagen: "fotos/Esquivias_Laguna_Erik_Andre.jpg" },
+{ nombre: "S3 FLORES PERALTA JUNIOR JHON", imagen: "fotos/Flores_Peralta_Junior_Jhon.jpg" },
+{ nombre: "S3 JUSCA HUAMANI JOSÉ ARMANDO", imagen: "fotos/Jusca_Huamani_Jose_Armando.jpg" },
+{ nombre: "S3 ORTEGA ALCA JOSE ANTONIO", imagen: "fotos/Ortega_Alca_Jose_Antonio.jpg" },
+{ nombre: "S3 ROMERO TORRES AZAEL ADONIS", imagen: "fotos/Romero_Torres_Azael_Adonis.jpg" },
+{ nombre: "S3 ROJAS SALAS MARVIN BRANDO", imagen: "fotos/Rojas_Salas_Marvin_Brando.jpg" },
+{ nombre: "S3 SALINAS PACHAPUMA Luis Alberto", imagen: "fotos/Salinas_Pachapuma_Luis_Alberto.jpg" },
+{ nombre: "S3 VELARDE ALANOCCA WILLIAN RONALDO", imagen: "fotos/Velarde_Alanocca_Willian_Ronaldo.jpg" },
+{ nombre: "S3 YANQUI GAMARRA WILFREDO", imagen: "fotos/Yanqui_Gamarra_Wilfredo.jpg" },
+{ nombre: "S3S ZAPATA MAMANI Julian Rayner", imagen: "fotos/Zapata_Mamani_Julian_Rayner.jpg" }
+
+    
+      // Agrega aquí el resto de los usuarios
+    ];
+
+    const buscador = document.getElementById('buscador');
+    const suggestions = document.getElementById('suggestions');
+    const selected = document.getElementById('selected');
+    const printArea = document.getElementById('print-area');
+    const selectionInfo = document.getElementById('selection-info');
+    let selectedIndex = -1;
+
+    // Función para extraer el primer apellido (formato: "GRADO. PRIMER_APELLIDO SEGUNDO_APELLIDO Nombres")
+    function obtenerPrimerApellido(nombreCompleto) {
+      const partes = nombreCompleto.split(' ');
+      // Saltamos el grado (si existe) y tomamos el siguiente token como primer apellido
+      return partes.length > 1 ? partes[1].toLowerCase() : '';
+    }
+
+    function updateSelectionCount() {
+      const count = selected.children.length;
+      selectionInfo.textContent = `${count} persona${count !== 1 ? 's' : ''} seleccionada${count !== 1 ? 's' : ''}`;
+    }
+
+    function highlightSelectedSuggestion() {
+      const items = suggestions.querySelectorAll('div');
+      items.forEach((item, index) => {
+        if (index === selectedIndex) {
+          item.classList.add('highlighted');
+          item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          item.classList.remove('highlighted');
+        }
+      });
+    }
+
+    buscador.addEventListener('input', () => {
+      const value = buscador.value.toLowerCase();
+      suggestions.innerHTML = '';
+      suggestions.style.display = 'none';
+      
+      if (value.length > 0) {
+        const filtrados = usuarios.filter(u => 
+          obtenerPrimerApellido(u.nombre).startsWith(value)
+        );
+        
+        if (filtrados.length > 0) {
+          filtrados.forEach((u, index) => {
+            const div = document.createElement('div');
+            div.textContent = u.nombre;
+            div.dataset.index = index;
+            div.onclick = () => seleccionarUsuario(u);
+            suggestions.appendChild(div);
+          });
+          suggestions.style.display = 'block';
+          selectedIndex = -1;
+        }
+      }
+    });
+
+    buscador.addEventListener('keydown', (e) => {
+      const items = suggestions.querySelectorAll('div');
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (items.length > 0) {
+          selectedIndex = (selectedIndex < items.length - 1) ? selectedIndex + 1 : 0;
+          highlightSelectedSuggestion();
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (items.length > 0) {
+          selectedIndex = (selectedIndex > 0) ? selectedIndex - 1 : items.length - 1;
+          highlightSelectedSuggestion();
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const items = suggestions.querySelectorAll('div');
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+          const usuarioNombre = items[selectedIndex].textContent;
+          const usuario = usuarios.find(u => u.nombre === usuarioNombre);
+          if (usuario) {
+            seleccionarUsuario(usuario);
+            buscador.value = '';
+            suggestions.style.display = 'none';
+            selectedIndex = -1;
+          }
+        }
+      }
+    });
+
+    function seleccionarUsuario(usuario) {
+      const alreadySelected = Array.from(selected.children).some(
+        card => card.dataset.name === usuario.nombre
+      );
+      
+      if (alreadySelected) return;
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.name = usuario.nombre;
+      card.innerHTML = `
+        <button class="delete-btn" onclick="eliminarTarjeta(this)">×</button>
+        <img src="${usuario.imagen}" alt="${usuario.nombre}">
+        <p>${usuario.nombre}</p>
+      `;
+      selected.appendChild(card);
+
+      const printCard = document.createElement('div');
+      printCard.className = 'print-card';
+      printCard.innerHTML = `<img src="${usuario.imagen}" alt="${usuario.nombre}">`;
+      printArea.appendChild(printCard);
+
+      updateSelectionCount();
+    }
+
+    function eliminarTarjeta(btn) {
+      const card = btn.closest('.card');
+      const nombre = card.dataset.name;
+      
+      card.remove();
+      
+      const printCards = printArea.querySelectorAll('.print-card');
+      printCards.forEach(pc => {
+        if (pc.querySelector('img').alt === nombre) {
+          pc.remove();
+        }
+      });
+
+      updateSelectionCount();
+    }
+
+    function printQueue() {
+      if (printArea.children.length === 0) {
+        alert('No hay personas seleccionadas para imprimir.');
+        return;
+      }
+      
+      printArea.style.display = 'block';
+      window.print();
+      setTimeout(() => {
+        printArea.style.display = 'none';
+      }, 100);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!buscador.contains(e.target) && !suggestions.contains(e.target)) {
+        suggestions.style.display = 'none';
+      }
+    });
+  </script>
+
+  <footer style="margin-top: 40px; padding: 20px 0; border-top: 2px solid #ccc; text-align: center; font-size: 1.5rem; color: #666;">
+    <p>Sistema desarrollado - Ingeniero de Sistemas Sebastian PARISUAÑA RAMOS - © 2025</p>
+  </footer>
+</body>
+</html>
